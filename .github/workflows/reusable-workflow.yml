@@ -7,12 +7,17 @@ on:
         description: 'Current recursion depth'
         required: true
         type: number
+    outputs:
+      matrix:
+        description: 'Generated matrix for next level'
+        value: ${{ jobs.generate-matrix.outputs.matrix }}
 
 jobs:
   generate-matrix:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
+      next_depth: ${{ steps.set-matrix.outputs.next_depth }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -30,8 +35,14 @@ jobs:
           matrix=$(python matrix_generator.py "${{ inputs.recursion_depth }}")
           echo "Matrix: ${matrix}"
           echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
-
-  recursive-jobs:
+          
+          # Extract next depth for debugging
+          if [[ $(echo "${matrix}" | jq -r '.include | length') -gt 0 ]]; then
+            next_depth=$(echo "${matrix}" | jq -r '.include[0].depth')
+            echo "next_depth=${next_depth}" >> "$GITHUB_OUTPUT"
+          fi
+  
+  process-items:
     needs: generate-matrix
     if: ${{ fromJSON(needs.generate-matrix.outputs.matrix).include != null && fromJSON(needs.generate-matrix.outputs.matrix).include[0] != null }}
     runs-on: ubuntu-latest
@@ -43,11 +54,14 @@ jobs:
         shell: bash
         run: |
           echo "Executing job with depth ${{ matrix.depth }} and ID ${{ matrix.id }}"
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Call next level of recursion
-        uses: izaitsevfb/recursive-workflow-prototype/.github/workflows/reusable-workflow.yml@main
-        with:
-          recursion_depth: ${{ matrix.depth }}
+          echo "This is a matrix job that would process an item"
+  
+  call-next-level:
+    needs: [generate-matrix, process-items]
+    if: ${{ always() && needs.process-items.result != 'failure' && fromJSON(needs.generate-matrix.outputs.matrix).include != null && fromJSON(needs.generate-matrix.outputs.matrix).include[0] != null }}
+    strategy:
+      matrix: ${{ fromJSON(needs.generate-matrix.outputs.matrix) }}
+      fail-fast: false
+    uses: izaitsevfb/recursive-workflow-prototype/.github/workflows/reusable-workflow.yml@main
+    with:
+      recursion_depth: ${{ matrix.depth }}
