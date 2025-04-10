@@ -1,0 +1,22 @@
+name: Trigger Recursive Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      initial_depth:
+        description: 'Initial recursion depth'
+        required: true
+        default: 0
+        type: number
+
+jobs:
+  start-recursion:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Call reusable workflow
+        uses: ./.github/workflows/reusable-workflow.yml
+        with:
+          recursion_depth: ${{ inputs.initial_depth }}

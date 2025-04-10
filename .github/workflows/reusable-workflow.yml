@@ -1,0 +1,52 @@
+name: Reusable Recursive Workflow
+
+on:
+  workflow_call:
+    inputs:
+      recursion_depth:
+        description: 'Current recursion depth'
+        required: true
+        type: number
+        default: 0
+
+jobs:
+  generate-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Generate matrix
+        id: set-matrix
+        run: |
+          echo "Current depth: ${{ inputs.recursion_depth }}"
+          matrix=$(python matrix_generator.py ${{ inputs.recursion_depth }})
+          echo "Matrix: $matrix"
+          echo "matrix=$matrix" >> $GITHUB_OUTPUT
+
+  recursive-jobs:
+    needs: generate-matrix
+    if: ${{ fromJSON(needs.generate-matrix.outputs.matrix).include[0] }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJSON(needs.generate-matrix.outputs.matrix) }}
+      fail-fast: false
+    steps:
+      - name: Report job info
+        run: |
+          echo "Executing job with depth ${{ matrix.depth }} and ID ${{ matrix.id }}"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Call next level of recursion
+        uses: ./.github/workflows/reusable-workflow.yml
+        with:
+          recursion_depth: ${{ matrix.depth }}
