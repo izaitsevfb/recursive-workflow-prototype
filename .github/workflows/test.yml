@@ -13,7 +13,8 @@ on:
 jobs:
   test:
     name: ${{ matrix.testItem.job_name }}
-    runs-on: ${{ matrix.testItem.os }}
+    runs-on: ubuntu-latest
+    # runs-on: ${{ matrix.testItem.os }}
     strategy:
       matrix:
         testItem: ${{ fromJson(inputs.testMatrix) }}

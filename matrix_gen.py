@@ -4,6 +4,7 @@ import json
 
 # Hardcoded list of builds. Each has an 'id', 'os', 'compiler', 'group', etc.
 ALL_BUILDS = [
+    # Original builds
     {
         "id": "linux-jammy-py3_9-gcc11",
         "os": "ubuntu-latest",
@@ -29,6 +30,18 @@ ALL_BUILDS = [
         "cuda": False,
         "group": "pull",
     },
+    # New CUDA build in pull group
+    {
+        "id": "linux-focal-cuda12.6-py3.10-gcc11",
+        "os": "ubuntu-latest",
+        "compiler": "gcc11",
+        "python_version": "3.10",
+        "cuda": "12.6",
+        "group": "pull",
+        # Specifying custom shard count
+        "shard_count": 5,
+    },
+    # Original trunk and periodic builds
     {
         "id": "linux-focal-cuda12.6-py3.10-gcc11-no-ops",
         "os": "ubuntu-latest",
@@ -54,14 +67,24 @@ ALL_BUILDS = [
         "cuda": False,
         "group": "periodic",
     },
+    # New ROCm build in pull group
+    {
+        "id": "linux-focal-rocm5.4-py3.9",
+        "os": "ubuntu-latest",
+        "compiler": "rocm",
+        "python_version": "3.9",
+        "cuda": False,
+        "rocm": "5.4",
+        "group": "pull",
+        "shard_count": 4,
+    },
 ]
 
 def generate_build_job_name(build):
     """Generate a human-readable job name for the build job."""
-    # Format: linux-jammy-aarch64-py3.10
     name = build["id"]
     platform = "linux"
-    
+
     # Determine distro
     distro = ""
     if "jammy" in name:
@@ -88,20 +111,28 @@ def generate_test_job_name(build, test_config):
     config = test_config.get("config", "default")
     shard = test_config.get("shard", 1)
     
-    # Mock total shards based on our configuration
-    total_shards = 4 if build.get("cuda") or build.get("compiler") == "rocm" else 3
+    # Total shards - use custom value if specified in the build, otherwise follow standard logic
+    if build.get("shard_count"):
+        total_shards = build.get("shard_count")
+    else:
+        total_shards = 4 if build.get("cuda") or build.get("compiler") == "rocm" else 3
     
-    # Mock instance type based on OS and compiler
-    instance = "linux.amd64.2xlarge"
-    if "windows" in build.get("os", ""):
+    # Instance type based on build configuration
+    if "id" in build and "linux-focal-cuda12.6-py3.10-gcc11" in build["id"] and not build.get("no_ops"):
+        instance = "linux.4xlarge.nvidia.gpu"
+    elif "rocm5.4" in build.get("id", ""):
+        instance = "linux.4xlarge.amd.gpu"
+    elif "windows" in build.get("os", ""):
         instance = "windows.4xlarge"
     elif build.get("cuda"):
         instance = "linux.gpu.nvidia.4xlarge"
     elif build.get("compiler") == "rocm":
         instance = "linux.gpu.amd.4xlarge"
+    else:
+        instance = "linux.amd64.2xlarge"
     
     # Generate the test job name in PyTorch format
-    test_job_name = f"test ({config}, {shard}, {total_shards}, {instance})"
+    test_job_name = f"({config}, {shard}, {total_shards}, {instance})"
     return test_job_name
 
 def get_test_matrix_for(build):
@@ -113,7 +144,9 @@ def get_test_matrix_for(build):
     # otherwise 2 shards for CPU.
     # We'll just do "debug" config for everything, but you can adapt to do
     # "distributed", "jit_legacy", "docs_test", etc.
-    if build.get("cuda") or build.get("compiler") == "rocm":
+    if build.get("shard_count"):
+        shard_count = build.get("shard_count")
+    elif build.get("cuda") or build.get("compiler") == "rocm":
         shard_count = 3
     else:
         shard_count = 2
