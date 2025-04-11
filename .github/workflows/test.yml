@@ -9,7 +9,7 @@ on:
 
 jobs:
   test:
-    name: run-test
+    name: ${{ fromJson(inputs.testItem).job_name }}
     runs-on: ubuntu-latest
     # runs-on: ${{ matrix.testItem.os }}
     steps:

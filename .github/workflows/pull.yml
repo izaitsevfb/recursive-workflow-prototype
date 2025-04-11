@@ -23,7 +23,7 @@ jobs:
 
   # (B) Expand over the top-level build+test array, passing each item to a reusable “build” workflow
   build-jobs:
-      name: ${{ matrix.config.job_name }}
+      name: ${{ matrix.config.build.job_name }}
       needs: generate-configs
       strategy:
         matrix:

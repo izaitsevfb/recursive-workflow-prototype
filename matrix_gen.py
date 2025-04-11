@@ -132,7 +132,7 @@ def generate_test_job_name(build, test_config):
         instance = "linux.amd64.2xlarge"
     
     # Generate the test job name in PyTorch format
-    test_job_name = f"({config}, {shard}, {total_shards}, {instance})"
+    test_job_name = f"test ({config}, {shard}, {total_shards}, {instance})"
     return test_job_name
 
 def get_test_matrix_for(build):
@@ -180,11 +180,10 @@ def main():
     output = []
     for b in filtered_builds:
         test_matrix = get_test_matrix_for(b)
-        job_name = generate_build_job_name(b)
+        b["job_name"] = generate_build_job_name(b)  # Inject job_name into the build object
         output.append({
             "build": b,
             "test": test_matrix,
-            "job_name": job_name,
         })
 
     # Print JSON to stdout so GitHub Actions can capture it
