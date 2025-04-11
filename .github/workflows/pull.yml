@@ -18,7 +18,7 @@ jobs:
       - name: Generate Build+Test Config
         id: save-matrix
         run: |
-          BUILD_MATRIX=$(python matrix_gen.py)
+          BUILD_MATRIX=$(python matrix_gen.py --group "pull")
           echo "build_matrix=${BUILD_MATRIX}" >> $GITHUB_OUTPUT
 
   # (B) Expand over the top-level build+test array, passing each item to a reusable “build” workflow
