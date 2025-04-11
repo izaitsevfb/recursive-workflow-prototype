@@ -3,35 +3,28 @@ name: test-workflow
 on:
   workflow_call:
     inputs:
-      testMatrix:
+      testItem:
         type: string
         required: true
-      compiler:
-        type: string
-        required: false  # or true if you want to use it
 
 jobs:
   test:
-    name: ${{ matrix.testItem.job_name }}
+    name: run-test
     runs-on: ubuntu-latest
     # runs-on: ${{ matrix.testItem.os }}
-    strategy:
-      matrix:
-        testItem: ${{ fromJson(inputs.testMatrix) }}
-
     steps:
       - name: Check out code (or artifacts)
         uses: actions/checkout@v4
 
       - name: Display test details
         run: |
-          echo "Compiler: ${{ inputs.compiler }}"
-          echo "Test Config: ${{ matrix.testItem.config }}"
-          echo "OS: ${{ matrix.testItem.os }}"
-          echo "Shard: ${{ matrix.testItem.shard }}"
+          echo "Compiler: ${{ fromJson(inputs.testItem).compiler }}"
+          echo "Test Config: ${{ fromJson(inputs.testItem).test_config }}"
+          echo "OS: ${{ fromJson(inputs.testItem).os }}"
+          echo "Shard: ${{ fromJson(inputs.testItem).shard }}"
           # e.g. download build artifacts if needed
 
       - name: Actually run tests
         run: |
-          echo "Now testing shard ${{ matrix.testItem.shard }} for ${{ matrix.testItem.compiler }}..."
+          echo "Now testing shard ${{ fromJson(inputs.testItem).shard }} of ${{ fromJson(inputs.testItem).test_config }}"
           # e.g. python -m unittest ...

@@ -12,42 +12,30 @@ on:
 
 jobs:
   build:
-    name: Build
+    name: build
     runs-on: ubuntu-latest
 
     steps:
-      - name: Parse build input
-        id: parse-build
-        run: |
-          echo "Build JSON: ${{ inputs.build }}"
-          # We can parse the string into partial shell variables if needed:
-          echo "os: ${{fromJson(inputs.build).os}}"
-          echo "compiler: ${{fromJson(inputs.build).compiler}}"
-          
-          echo "os=$(jq -r '.os' <<< "${{ inputs.build }}")" >> "$GITHUB_OUTPUT"
-          echo "compiler=$(jq -r '.compiler' <<< "${{ inputs.build }}")" >> "$GITHUB_OUTPUT"
-
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Do the actual build
         run: |
-          echo "Building with OS=${{ steps.parse-build.outputs.os }} compiler=${{ steps.parse-build.outputs.compiler }}"
+          echo "Building with OS=${{fromJson(inputs.build).os}} compiler=${{fromJson(inputs.build).compiler}}"
           # e.g. cmake ... / make ...
 
       - name: Optional Save artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.parse-build.outputs.compiler }}-artifacts
+          name: ${{fromJson(inputs.build).compiler}}-artifacts
           path: build/  # or wherever
 
-
-  # Either do "test" in a second job here, or call another reusable workflow “test.yml”.
   test:
-    name: Test
+    name: ${{ matrix.testItem.job_name }}
     needs: build
+    strategy:
+      matrix:
+        testItem: ${{ fromJson(inputs.testMatrix) }}
     uses: ./.github/workflows/test.yml
     with:
-      testMatrix: ${{ inputs.testMatrix }}
-      # We might also pass "compiler" or other info:
-#      compiler: ${{ steps.parse-build.outputs.compiler }}
+      testItem: ${{ toJson(matrix.testItem) }}
