@@ -21,6 +21,9 @@ jobs:
         run: |
           echo "Build JSON: ${{ inputs.build }}"
           # We can parse the string into partial shell variables if needed:
+          echo "os: ${{fromJson(inputs.build).os}}"
+          echo "compiler: ${{fromJson(inputs.build).compiler}}"
+          
           echo "os=$(jq -r '.os' <<< "${{ inputs.build }}")" >> "$GITHUB_OUTPUT"
           echo "compiler=$(jq -r '.compiler' <<< "${{ inputs.build }}")" >> "$GITHUB_OUTPUT"
 
