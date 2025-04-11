@@ -56,6 +56,54 @@ ALL_BUILDS = [
     },
 ]
 
+def generate_build_job_name(build):
+    """Generate a human-readable job name for the build job."""
+    # Format: linux-jammy-aarch64-py3.10
+    name = build["id"]
+    platform = "linux"
+    
+    # Determine distro
+    distro = ""
+    if "jammy" in name:
+        distro = "jammy"
+    elif "focal" in name:
+        distro = "focal"
+    
+    # Determine architecture
+    arch = "amd64"  # default
+    if "windows" in build.get("os", ""):
+        platform = "win"
+        arch = "x86_64"
+    
+    # Determine Python version with the format py3.10
+    py_version = f"py{build['python_version']}"
+    
+    # Build the job name
+    build_job_name = f"{platform}-{distro}-{arch}-{py_version}"
+    return build_job_name
+
+def generate_test_job_name(build, test_config):
+    """Generate a human-readable job name for the test job."""
+    # Format: test (default, 1, 4, linux.arm64.2xlarge)
+    config = test_config.get("config", "default")
+    shard = test_config.get("shard", 1)
+    
+    # Mock total shards based on our configuration
+    total_shards = 4 if build.get("cuda") or build.get("compiler") == "rocm" else 3
+    
+    # Mock instance type based on OS and compiler
+    instance = "linux.amd64.2xlarge"
+    if "windows" in build.get("os", ""):
+        instance = "windows.4xlarge"
+    elif build.get("cuda"):
+        instance = "linux.gpu.nvidia.4xlarge"
+    elif build.get("compiler") == "rocm":
+        instance = "linux.gpu.amd.4xlarge"
+    
+    # Generate the test job name in PyTorch format
+    test_job_name = f"test ({config}, {shard}, {total_shards}, {instance})"
+    return test_job_name
+
 def get_test_matrix_for(build):
     """
     Returns a list of test configurations (shards, etc.) for the given build.
@@ -72,12 +120,15 @@ def get_test_matrix_for(build):
 
     test_list = []
     for shard_index in range(1, shard_count + 1):
-        test_list.append({
+        test_config = {
             "os": build["os"],
             "compiler": build["compiler"],
             "config": "debug",
             "shard": shard_index,
-        })
+        }
+        # Add human-readable job name
+        test_config["job_name"] = generate_test_job_name(build, test_config)
+        test_list.append(test_config)
     return test_list
 
 def main():
@@ -92,13 +143,15 @@ def main():
     else:
         filtered_builds = ALL_BUILDS
 
-    # Construct the final array: each element has {"build": build, "test": [...]}
+    # Construct the final array: each element has {"build": build, "test": [...], "job_name": "..."}
     output = []
     for b in filtered_builds:
         test_matrix = get_test_matrix_for(b)
+        job_name = generate_build_job_name(b)
         output.append({
             "build": b,
             "test": test_matrix,
+            "job_name": job_name,
         })
 
     # Print JSON to stdout so GitHub Actions can capture it
