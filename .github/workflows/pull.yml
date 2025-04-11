@@ -1,0 +1,36 @@
+name: Pull
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+jobs:
+  generate-configs:
+    runs-on: ubuntu-latest
+    outputs:
+      # We'll store the entire array in an output named 'build_matrix'
+      build_matrix: ${{ steps.save-matrix.outputs.build_matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate Build+Test Config
+        id: save-matrix
+        run: |
+          BUILD_MATRIX=$(python matrix_gen.py)
+          echo "build_matrix=${BUILD_MATRIX}" >> $GITHUB_OUTPUT
+
+  # (B) Expand over the top-level build+test array, passing each item to a reusable “build” workflow
+  build-jobs:
+      name: Build Jobs
+      needs: generate-configs
+      strategy:
+        matrix:
+          config: ${{ fromJson(needs.generate-configs.outputs.build_matrix) }}
+      uses: ./.github/workflows/build.yml
+      with:
+        # Because GHA reusable workflow inputs must be strings,
+        # convert the "build" and "test" objects to JSON strings:
+        build: ${{ toJson(matrix.config.build) }}
+        testMatrix: ${{ toJson(matrix.config.test) }}

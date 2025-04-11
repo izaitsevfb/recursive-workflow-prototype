@@ -1,0 +1,50 @@
+name: build-workflow
+
+on:
+  workflow_call:
+    inputs:
+      build:
+        type: string
+        required: true
+      testMatrix:
+        type: string
+        required: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Parse build input
+        id: parse-build
+        run: |
+          echo "Build JSON: ${{ inputs.build }}"
+          # We can parse the string into partial shell variables if needed:
+          echo "os=$(jq -r '.os' <<< "${{ inputs.build }}")" >> "$GITHUB_OUTPUT"
+          echo "compiler=$(jq -r '.compiler' <<< "${{ inputs.build }}")" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Do the actual build
+        run: |
+          echo "Building with OS=${{ steps.parse-build.outputs.os }} compiler=${{ steps.parse-build.outputs.compiler }}"
+          # e.g. cmake ... / make ...
+
+      - name: Optional Save artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.parse-build.outputs.compiler }}-artifacts
+          path: build/  # or wherever
+
+
+  # Either do "test" in a second job here, or call another reusable workflow “test.yml”.
+  test:
+    name: Test
+    needs: build
+    uses: ./.github/workflows/test.yml
+    with:
+      testMatrix: ${{ inputs.testMatrix }}
+      # We might also pass "compiler" or other info:
+#      compiler: ${{ steps.parse-build.outputs.compiler }}
