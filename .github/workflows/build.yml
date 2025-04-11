@@ -12,7 +12,7 @@ on:
 
 jobs:
   build:
-    name: ${{ fromJson(inputs.build).job_name }}
+    name: build ${{ fromJson(inputs.build).job_name }}
     runs-on: ubuntu-latest
 
     steps:
@@ -31,7 +31,7 @@ jobs:
           path: build/  # or wherever
 
   test:
-    name: test
+    name: ${{ matrix.testItem.job_name }}
     needs: build
     strategy:
       matrix:
