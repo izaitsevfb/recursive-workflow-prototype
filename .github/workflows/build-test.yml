@@ -12,7 +12,7 @@ on:
 
 jobs:
   build:
-    name: build ${{ fromJson(inputs.build).job_name }}
+    name: build
     runs-on: ubuntu-latest
 
     steps:

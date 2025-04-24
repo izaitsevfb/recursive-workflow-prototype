@@ -82,37 +82,8 @@ ALL_BUILDS = [
 
 def generate_build_job_name(build):
     """Generate a human-readable job name for the build job."""
-    name = build["id"]
-    platform = "linux"
-
-    # Determine distro
-    distro = ""
-    if "jammy" in name:
-        distro = "jammy"
-    elif "focal" in name:
-        distro = "focal"
-    
-    # Determine architecture
-    arch = "amd64"  # default
-    if "windows" in build.get("os", ""):
-        platform = "win"
-        arch = "x86_64"
-    
-    # Determine Python version with the format py3.10
-    py_version = f"py{build['python_version']}"
-    
-    # Determine additional components for the job name
-    cuda_part = ""
-    if build.get("cuda"):
-        cuda_part = f"cuda{build.get('cuda')}-"
-    elif build.get("rocm"):
-        cuda_part = f"rocm{build.get('rocm')}-"
-    
-    compiler = build.get("compiler", "")
-    
-    # Build the job name
-    build_job_name = f"{platform}-{distro}-{cuda_part}{py_version}-{compiler}"
-    return build_job_name
+    # Simply use the ID directly as the job name since it already contains all needed info
+    return build["id"]
 
 def generate_test_job_name(build, test_config):
     """Generate a human-readable job name for the test job."""
@@ -211,11 +182,14 @@ def main():
     output = []
     for b in filtered_builds:
         test_matrix = get_test_matrix_for(b)
-        b["job_name"] = generate_build_job_name(b)  # Add job_name to the build object
+        
+        # Create a clean build object without ID field
+        clean_build = b.copy()
+        clean_build["job_name"] = generate_build_job_name(b)  # Set job_name to ID value
         
         # Create an entry with build and test matrix
         entry = {
-            "build": b,
+            "build": clean_build,
             "test": test_matrix,
         }
         output.append(entry)
