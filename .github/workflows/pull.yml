@@ -28,7 +28,7 @@ jobs:
       strategy:
         matrix:
           config: ${{ fromJson(needs.generate-configs.outputs.build_matrix) }}
-      uses: ./.github/workflows/build.yml
+      uses:  ./.github/workflows/build-test.yml
       with:
         # Because GHA reusable workflow inputs must be strings,
         # convert the "build" and "test" objects to JSON strings:

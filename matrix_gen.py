@@ -101,14 +101,35 @@ def generate_build_job_name(build):
     # Determine Python version with the format py3.10
     py_version = f"py{build['python_version']}"
     
+    # Determine additional components for the job name
+    cuda_part = ""
+    if build.get("cuda"):
+        cuda_part = f"cuda{build.get('cuda')}-"
+    elif build.get("rocm"):
+        cuda_part = f"rocm{build.get('rocm')}-"
+    
+    compiler = build.get("compiler", "")
+    
     # Build the job name
-    build_job_name = f"{platform}-{distro}-{arch}-{py_version}"
+    build_job_name = f"{platform}-{distro}-{cuda_part}{py_version}-{compiler}"
     return build_job_name
 
 def generate_test_job_name(build, test_config):
     """Generate a human-readable job name for the test job."""
-    # Format: test (default, 1, 4, linux.arm64.2xlarge)
-    config = test_config.get("config", "default")
+    # Format: test (distributed, 1, 3, lf.ephemeral.linux.g4dn.12xlarge.nvidia.gpu)
+    
+    # Determine test config type based on build properties
+    if build.get("mobile"):
+        config = "mobile"
+    elif "executorch" in build.get("id", ""):
+        config = "executorch"
+    elif build.get("no_ops"):
+        config = "no_ops"
+    elif build.get("cuda") or build.get("rocm"):
+        config = "distributed"  # Assume distributed for GPU builds
+    else:
+        config = "default"
+        
     shard = test_config.get("shard", 1)
     
     # Total shards - use custom value if specified in the build, otherwise follow standard logic
@@ -118,18 +139,19 @@ def generate_test_job_name(build, test_config):
         total_shards = 4 if build.get("cuda") or build.get("compiler") == "rocm" else 3
     
     # Instance type based on build configuration
+    prefix = "lf.ephemeral."
     if "id" in build and "linux-focal-cuda12.6-py3.10-gcc11" in build["id"] and not build.get("no_ops"):
-        instance = "linux.4xlarge.nvidia.gpu"
+        instance = f"{prefix}linux.g4dn.12xlarge.nvidia.gpu"
     elif "rocm5.4" in build.get("id", ""):
-        instance = "linux.4xlarge.amd.gpu"
+        instance = f"{prefix}linux.g4dn.12xlarge.amd.gpu"
     elif "windows" in build.get("os", ""):
-        instance = "windows.4xlarge"
+        instance = f"{prefix}windows.g4dn.12xlarge"
     elif build.get("cuda"):
-        instance = "linux.gpu.nvidia.4xlarge"
+        instance = f"{prefix}linux.g4dn.12xlarge.nvidia.gpu"
     elif build.get("compiler") == "rocm":
-        instance = "linux.gpu.amd.4xlarge"
+        instance = f"{prefix}linux.g4dn.12xlarge.amd.gpu"
     else:
-        instance = "linux.amd64.2xlarge"
+        instance = f"{prefix}linux.2xlarge"
     
     # Generate the test job name in PyTorch format
     test_job_name = f"test ({config}, {shard}, {total_shards}, {instance})"
@@ -140,10 +162,19 @@ def get_test_matrix_for(build):
     Returns a list of test configurations (shards, etc.) for the given build.
     Modify or expand as needed.
     """
-    # Example logic: if 'cuda' or 'rocm' is set, assume GPU, use 3 shards;
-    # otherwise 2 shards for CPU.
-    # We'll just do "debug" config for everything, but you can adapt to do
-    # "distributed", "jit_legacy", "docs_test", etc.
+    # Determine config type based on build properties
+    if build.get("mobile"):
+        config_type = "mobile"
+    elif "executorch" in build.get("id", ""):
+        config_type = "executorch"
+    elif build.get("no_ops"):
+        config_type = "no_ops"
+    elif build.get("cuda") or build.get("rocm"):
+        config_type = "distributed"  # Assume distributed for GPU builds
+    else:
+        config_type = "default"
+    
+    # Determine shard count
     if build.get("shard_count"):
         shard_count = build.get("shard_count")
     elif build.get("cuda") or build.get("compiler") == "rocm":
@@ -156,7 +187,7 @@ def get_test_matrix_for(build):
         test_config = {
             "os": build["os"],
             "compiler": build["compiler"],
-            "config": "debug",
+            "config": config_type,
             "shard": shard_index,
         }
         # Add human-readable job name
@@ -176,15 +207,18 @@ def main():
     else:
         filtered_builds = ALL_BUILDS
 
-    # Construct the final array: each element has {"build": build, "test": [...], "job_name": "..."}
+    # Construct the final array with build info and test matrix
     output = []
     for b in filtered_builds:
         test_matrix = get_test_matrix_for(b)
-        b["job_name"] = generate_build_job_name(b)  # Inject job_name into the build object
-        output.append({
+        b["job_name"] = generate_build_job_name(b)  # Add job_name to the build object
+        
+        # Create an entry with build and test matrix
+        entry = {
             "build": b,
             "test": test_matrix,
-        })
+        }
+        output.append(entry)
 
     # Print JSON to stdout so GitHub Actions can capture it
     print(json.dumps(output))
